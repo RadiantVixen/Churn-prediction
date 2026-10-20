@@ -30,7 +30,7 @@ def parse_data(file_path = "data/bank_data_train.csv"):
 
     print(f"Total samples after cleaning: {len(df)}")
 
-    return X_train, X_test, y_train, y_test
+    return df[['ID']], X_train, X_test, y_train, y_test
 
     # print("Train samples: ", X_train)
     # print("Test samples: ", X_test)

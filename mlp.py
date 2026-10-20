@@ -17,7 +17,6 @@ l3 = [0] * 4
 l4 = [0] * 2
 
 
-
 def crossEntropy(m, b, lable):
     Cm = m - lable
     Cb = b - (1 - lable)
@@ -105,14 +104,15 @@ def train(features, lables):
 
 
 
-
-def predict(features, ids, y):
+def predict(ids, X_train, X_test, y_train, y_test):
 
     correct = 0
     malignant_probabilities = []
 
-    for i in range(len(features)):
-        M, B = forwardPropagation(features[i], params)
+    train(X_train, y_train)
+
+    for i in range(len(X_test)):
+        M, B = forwardPropagation(X_test[i])
         malignant_probabilities.append(M)
 
         if M > B:
@@ -127,12 +127,13 @@ def predict(features, ids, y):
         else:
             print("B")
 
-        if prediction == y[i]:
+        if prediction == y_test[i]:
             correct += 1
 
-    loss = cross_entropy_loss(np.array(malignant_probabilities), y)
-    accuracy = correct / len(y) * 100
+    loss = cross_entropy_loss(np.array(malignant_probabilities), y_test)
+    accuracy = correct / len(y_test) * 100
 
     print(f"Binary cross-entropy: {loss:.4f}")
     print(f"\nAccuracy: {accuracy:.2f}%")
-    print(f"Correct predictions: {correct}/{len(y)}")
+    print(f"Correct predictions: {correct}/{len(y_test)}")
+

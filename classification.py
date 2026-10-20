@@ -1,15 +1,12 @@
-import tensorflow as tf
-import numpy as np
 from sklearn.dummy import DummyClassifier
 from sklearn.model_selection import GridSearchCV
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.neural_network import MLPClassifier
-from sklearn.datasets import make_classification
-from sklearn.model_selection import train_test_split
-from keras.models import Sequential
-from keras.layers import Dense, Activation
-from keras.layers import Input, Dense, concatenate
+import tensorflow as tf
+from tensorflow.keras.layers import Input, Dense, Activation, Dropout
 from keras.models import Model
+import numpy as np
+
 
 def baseline(X_train, y_train, X_test, y_test):
 
@@ -46,28 +43,41 @@ def mlpClassifier(X_train, y_train, X_test, y_test):
     clf.score(y_test, y_pred)
     return clf
 
-def KerasClassifier(X_train, y_train, X_test, y_test):
 
-    model = Sequential()
-    model.add(Dense(units=64, input_dim=100))
-    model.add(Activation('relu'))
-    model.add(Dense(units=10))
-    model.add(Activation('softmax'))
-    input1 = Input(shape=(100,))
-    input2 = Input(shape=(50,))
-    hidden1 = Dense(64, activation='relu')(input1)
-    hidden2 = Dense(32, activation='relu')(input2)
-    merged = concatenate([hidden1, hidden2])
-    output = Dense(10, activation='softmax')(merged)
-    model = Model(inputs=[input1, input2], outputs=output)
+def KerasSigmoidClassifier(X_train, y_train, X_test, y_test):
 
-    model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
-    model.fit([X_train, X_train], y_train, epochs=10, batch_size=32)
-    y_pred = model.predict([X_test, X_test])
-    model.evaluate([X_test, X_test], y_test)
+    n_features = X_train.shape[1]
+    inputs = Input(shape=(n_features,))
+    
+    x = Dense(64)(inputs)
+    x = Activation('sigmoid')
+    x = Dropout(0.3)
+    
+    x = Dense(32)(x)
+    x = Activation('sigmoid')
+    
+    outputs = Dense(3, activation='softmax')(x)
 
+    model = Model(inputs=inputs, outputs=outputs)
+
+    model.compile(
+        optimizer='adam', 
+        loss='categorical_crossentropy', 
+        metrics=['accuracy']
+    )
+    model.fit(
+        X_train, y_train, 
+        epochs=10, 
+        batch_size=32, 
+        validation_split=0.1
+    )
+    
+    loss, accuracy = model.evaluate(X_test, y_test)
+    print(f"Test Accuracy with Sigmoid Hidden Layers: {accuracy:.4f} and the loss is {loss:.4f}")
 
     return model
+
+
 
 def tanserflowClassifier(X_train, y_train, X_test, y_test):
     def forward_pass(X):
@@ -94,3 +104,53 @@ def tanserflowClassifier(X_train, y_train, X_test, y_test):
         optimizer.apply_gradients(zip(gradients, [W1, b1, W2, b2]))
 
 
+
+
+def tensorflow_classifier(X_train, y_train, X_test, y_test, epochs=10, lr=0.001):
+    
+    X_train_tensor = tf.convert_to_tensor(X_train.toarray(), dtype=tf.float32)
+    X_test_tensor = tf.convert_to_tensor(X_test.toarray(), dtype=tf.float32)
+    
+    y_train_tensor = tf.convert_to_tensor(y_train, dtype=tf.float32)
+    
+    num_features = X_train_tensor.shape[1]
+    num_classes = y_train_tensor.shape[1]
+
+    W1 = tf.Variable(tf.random.normal([num_features, 64], stddev=0.1))
+    b1 = tf.Variable(tf.zeros([64]))
+
+    W2 = tf.Variable(tf.random.normal([64, num_classes], stddev=0.1))
+    b2 = tf.Variable(tf.zeros([num_classes]))
+
+    def forward_pass(X):
+        layer1 = tf.sigmoid(tf.matmul(X, W1) + b1)
+        
+        logits = tf.matmul(layer1, W2) + b2
+        output = tf.nn.softmax(logits)
+        return output
+
+    optimizer = tf.optimizers.Adam(learning_rate=lr)
+
+    print("Starting raw TensorFlow training...")
+    for epoch in range(epochs):
+        with tf.GradientTape() as tape:
+            predictions = forward_pass(X_train_tensor)
+            
+            loss = tf.keras.losses.categorical_crossentropy(y_train_tensor, predictions)
+            loss = tf.reduce_mean(loss)
+
+        gradients = tape.gradient(loss, [W1, b1, W2, b2])
+
+        optimizer.apply_gradients(zip(gradients, [W1, b1, W2, b2]))
+        
+        print(f"Epoch {epoch+1}/{epochs} - Loss: {loss.numpy():.4f}")
+
+    test_preds = forward_pass(X_test_tensor)
+    
+    predicted_classes = tf.argmax(test_preds, axis=1)
+    true_classes = tf.argmax(y_test_tensor, axis=1)
+    
+    accuracy = tf.reduce_mean(tf.cast(tf.equal(predicted_classes, true_classes), tf.float32))
+    print(f"Test Accuracy: {accuracy.numpy():.4f}")
+
+    return W1, b1, W2, b2
