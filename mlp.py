@@ -2,25 +2,22 @@ import json
 import numpy as np
 
 T = 1
-L1_weights = np.random.randn(16, 30) * np.sqrt(1.0 / 30)
-L2_weights = np.random.randn(4, 16) * np.sqrt(1.0 / 16)
-L3_weights = np.random.randn(2, 4) * np.sqrt(1.0 / 4)
+L1_weights = np.random.randn(50, 102) * np.sqrt(1.0 / 102)
+L2_weights = np.random.randn(25, 50) * np.sqrt(1.0 / 50)
+L3_weights = np.random.randn(2, 25) * np.sqrt(1.0 / 25)
 Lr = 0.001
 Epochs = 100
 
-L1_biases = np.zeros(16)
-L2_biases = np.zeros(4)
+L1_biases = np.zeros(50)
+L2_biases = np.zeros(25)
 L3_biases = np.zeros(2)
 
-l2 = [0] * 16
-l3 = [0] * 4
+l2 = [0] * 50
+l3 = [0] * 25
 l4 = [0] * 2
 
-
-def crossEntropy(m, b, lable):
-    Cm = m - lable
-    Cb = b - (1 - lable)
-    return Cm, Cb
+def crossEntropy(prediction, label):
+    return np.array([prediction[0] - label, prediction[1] - (1 - label)])
 
 
 def softMax(logits):
@@ -29,7 +26,7 @@ def softMax(logits):
     exponentials = np.exp(shifted_logits)
     probabilities = exponentials / np.sum(exponentials)
 
-    return probabilities[0], probabilities[1]
+    return probabilities
 
 
 def activation(z):
@@ -40,26 +37,27 @@ def activation(z):
 def sigmoidDerivative(a):
     return a * (1 - a)
 
+
 def ft_gradient(delta, a, weights):
-    return np.dot(weights.T, delta) * sigmoidDerivative(a)
+    print("np.dot(weights.T, delta)",np.dot(weights.T, delta).shape, "weights.shape", weights.shape, "delta", delta.shape, "sigmoidDerivative(a)", sigmoidDerivative(a).shape)
+    return np.dot(weights.T, delta) * sigmoidDerivative(a).reshape(-1, 1)
 
 
-def backPropagation(Cm, Cb, feature):
+def backPropagation(error, feature):
     global L1_weights, L2_weights, L3_weights, L1_biases, L2_biases, L3_biases
 
-    L3_gradient = np.array([Cm, Cb])
+    L3_gradient = error
     L2_gradient = ft_gradient(L3_gradient, l3,  L3_weights)
     L1_gradient = ft_gradient(L2_gradient, l2, L2_weights)
 
 
-
-    L3_biases -= Lr * L3_gradient
+    L3_biases -= Lr * L3_gradient.reshape(-1)
     L3_weights -= Lr * np.outer(L3_gradient, l3)
     
-    L2_biases -= Lr * L2_gradient
+    L2_biases -= Lr * L2_gradient.reshape(-1)
     L2_weights -= Lr * np.outer(L2_gradient, l2)
 
-    L1_biases -= Lr * L1_gradient
+    L1_biases -= Lr * L1_gradient.reshape(-1)
     L1_weights -= Lr * np.outer(L1_gradient, feature)
 
 
@@ -98,9 +96,9 @@ def train(features, lables):
         np.random.shuffle(indices)
 
         for i in indices:
-            M, B = forwardPropagation(features[i])
-            Cm, Cb = crossEntropy(M, B, lables[i])
-            backPropagation(Cm, Cb, features[i])
+            prediction = forwardPropagation(features[i])
+            error = crossEntropy(prediction, lables.iloc[i])
+            backPropagation(error, features[i])
 
 
 
@@ -110,6 +108,7 @@ def predict(ids, X_train, X_test, y_train, y_test):
     malignant_probabilities = []
 
     train(X_train, y_train)
+
 
     for i in range(len(X_test)):
         M, B = forwardPropagation(X_test[i])
