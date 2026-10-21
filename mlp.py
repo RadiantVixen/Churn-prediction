@@ -6,7 +6,7 @@ L1_weights = np.random.randn(50, 102) * np.sqrt(1.0 / 102)
 L2_weights = np.random.randn(25, 50) * np.sqrt(1.0 / 50)
 L3_weights = np.random.randn(2, 25) * np.sqrt(1.0 / 25)
 Lr = 0.001
-Epochs = 100
+Epochs = 1
 
 L1_biases = np.zeros(50)
 L2_biases = np.zeros(25)
@@ -107,7 +107,7 @@ def predict(ids, X_train, X_test, y_train, y_test):
     correct = 0
     malignant_probabilities = []
 
-    train(X_train, y_train)
+    train(X_train[:100], y_train)
 
 
     for i in range(len(X_test)):
@@ -119,7 +119,7 @@ def predict(ids, X_train, X_test, y_train, y_test):
         else:
             prediction = 0
 
-        print(ids[i], end=": ")
+        # print(ids[i], end=": ")
 
         if prediction == 1:
             print("M")
