@@ -2,44 +2,38 @@
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
-from pandas.api.types import is_numeric_dtype
 
-def parse_data(file_path = "data/bank_data_train.csv"):
+
+def parse_data(file_path="data/bank_data_train.csv", sample_size=None, random_state=42):
+    """Load numeric bank data and return aligned, stratified train/test arrays."""
     df = pd.read_csv(file_path)
+    required_columns = {"ID", "TARGET"}
+    missing_columns = required_columns.difference(df.columns)
+    if missing_columns:
+        raise ValueError(f"Missing required columns: {sorted(missing_columns)}")
 
-    for col in df.columns:
-        if is_numeric_dtype(df[col]):
-            df[col] = df[col].fillna(df[col].mean())
+    if sample_size is not None:
+        if sample_size < 10:
+            raise ValueError("sample_size must be at least 10")
+        df = df.sample(n=min(sample_size, len(df)), random_state=random_state)
 
-    features = df.drop(columns=['TARGET'])
-    scaler = StandardScaler()
-    numeric_features = features.select_dtypes(include=['number'])
+    y = df["TARGET"].astype(int)
+    if y.nunique() < 2:
+        raise ValueError("The selected data must contain both TARGET classes")
 
-    X_standardized = scaler.fit_transform(numeric_features)
+    features = df.drop(columns=["ID", "TARGET"])
+    numeric_features = features.select_dtypes(include="number")
+    if numeric_features.empty:
+        raise ValueError("The dataset does not contain numeric features")
+    numeric_features = numeric_features.replace([float("inf"), -float("inf")], pd.NA)
+    numeric_features = numeric_features.fillna(numeric_features.median()).fillna(0)
 
-    X = X_standardized
-    y = df[['TARGET']]
-
-    print("Features: ", len(X))
-    print("Labels: ", len(y))
-
-
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=42, stratify=y
+    X_train, X_test, y_train, y_test, ids_train, ids_test = train_test_split(
+        numeric_features, y, df["ID"], test_size=0.2, random_state=random_state, stratify=y
     )
-
-    print(f"Total samples after cleaning: {len(df)}")
-
-    return df[['ID']], X_train, X_test, y_train, y_test
-
-    # print("Train samples: ", X_train)
-    # print("Test samples: ", X_test)
-    # print("Test samples: ", y_test)
-    # print("Test samples: ", y_train)
-
-    # train_df = pd.concat([X_train, y_train], axis=1)
-    # test_df  = pd.concat([X_test, y_test], axis=1)
-
-    # train_df.to_csv('train_set.csv', index=False)
-    # test_df.to_csv('test_set.csv', index=False)
+    scaler = StandardScaler()
+    X_train = scaler.fit_transform(X_train)
+    X_test = scaler.transform(X_test)
+    return (ids_train.reset_index(drop=True), ids_test.reset_index(drop=True),
+            X_train, X_test, y_train.to_numpy(), y_test.to_numpy())
 

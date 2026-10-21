@@ -1,13 +1,38 @@
-# from classification import baseline
+import argparse
+import pandas as pd
+
+from classification import baseline, random_forest, mlp_classifier, keras_classifier, tensorflow_classifier
 from parse import parse_data
 from mlp import predict
 
 
 if __name__ == "__main__":
-    print("This is the main entry point of the program.")
-    ids, X_train, X_test, y_train, y_test = parse_data("data/bank_data_train.csv")
-    # baseline(X_train, y_train, X_test, y_test)
-    predict(ids, X_train, X_test, y_train, y_test)
-# 
+    parser = argparse.ArgumentParser(description="Churn prediction experiments")
+    parser.add_argument("--data", default="data/bank_data_train.csv")
+    parser.add_argument("--sample-size", type=int, default=100,
+                        help="Rows for a quick test; use 0 for the complete dataset")
+    parser.add_argument("--skip-tensorflow", action="store_true")
+    parser.add_argument("--predictions", default="predictions.csv")
+    args = parser.parse_args()
+
+    sample_size = None if args.sample_size == 0 else args.sample_size
+    ids_train, ids_test, X_train, X_test, y_train, y_test = parse_data(args.data, sample_size)
+    results = []
+    for name, runner in [("Baseline", baseline), ("Random forest", random_forest),
+                         ("Scikit-learn MLP", mlp_classifier)]:
+        _, metrics = runner(X_train, y_train, X_test, y_test)
+        results.append({"library": "scikit-learn", "algorithm": name, **metrics})
+
+    if not args.skip_tensorflow:
+        for name, runner in [("Keras MLP", keras_classifier), ("TensorFlow MLP", tensorflow_classifier)]:
+            _, metrics = runner(X_train, y_train, X_test, y_test)
+            results.append({"library": "TensorFlow", "algorithm": name, **metrics})
+
+    numpy_model, metrics = predict(ids_test, X_train, X_test, y_train, y_test)
+    results.append({"library": "NumPy", "algorithm": "OOP MLP", **metrics})
+    pd.DataFrame({"ID": ids_test, "TARGET": numpy_model.predict_proba(X_test)}).to_csv(
+        args.predictions, index=False
+    )
+    print(pd.DataFrame(results).to_string(index=False))
 
 
