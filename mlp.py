@@ -134,7 +134,7 @@ def predict(ids, X_train, X_test, y_train, y_test):
 
 
     probs_array = np.array(customer_probabilities)
-    binary_predictions = (probs_array >= 0.5).astype(bool)
+    binary_predictions = (probs_array >= 0.5).astype(int)
 
     pd.DataFrame({"ID": ids, "TARGET": binary_predictions}).to_csv(
         "customer_probabilities.csv", index=False
