@@ -2,3 +2,6 @@ numpy
 pandas
 scikit-learn
 tensorflow
+pandas
+numpy
+
