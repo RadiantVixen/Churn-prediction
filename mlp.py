@@ -1,172 +1,131 @@
-import pandas as pd
 import numpy as np
 from sklearn.metrics import accuracy_score, roc_auc_score
-
-T = 1
-Lr = 0.001
-Epochs = 10
+from sklearn.preprocessing import StandardScaler
+from sklearn.impute import SimpleImputer
 
 
-# def crossEntropy(prediction, label):
-#     target = np.zeros_like(prediction)
-#     target[int(label)] = 1.0
-#     return prediction - target
-
-def crossEntropy(prediction, label):
-    return prediction - label
-
-def cross_entropy_loss(probability, label):
-    epsilon = 1e-12
-    probability = np.clip(probability, epsilon, 1 - epsilon)
-    return -(
-        label * np.log(probability)
-        + (1 - label) * np.log(1 - probability)
-    )
-
-def softMax(logits):
-    logits = np.asarray(logits, dtype=float)
-    shifted_logits = logits - np.max(logits)
-    exponentials = np.exp(shifted_logits)
-    probabilities = exponentials / np.sum(exponentials)
-
-    return probabilities
-
-def activation(z):
-    z = np.clip(z, -500, 500)
-    return 1.0 / (1.0 + np.exp(-z))
-
-
-def sigmoidDerivative(a):
-    return a * (1 - a)
-
-
-def ft_gradient(delta, a, weights):
-    return np.dot(weights.T, delta) * sigmoidDerivative(a)
-
-class MLP_model:
-    def __init__(self, l0):
-        self.weights = [
-        np.random.randn(64, l0) * np.sqrt(1.0 / l0),
-        np.random.randn(32, 64) * np.sqrt(1.0 / 64),
-        np.random.randn(16, 32) * np.sqrt(1.0 / 32),
-        np.random.randn(1, 16) * np.sqrt(1.0 / 16),
-        ]
-
-        self.biases = [
-        np.zeros(64),
-        np.zeros(32),
-        np.zeros(16),
-        np.zeros(1),]
-
-        self.layers = [np.zeros(64), np.zeros(32), np.zeros(16), np.zeros(1)]
-
-    def backPropagation(self, error, feature):
-
-        L4_gradient = error
-        L3_gradient = ft_gradient(L4_gradient, self.layers[3],  self.weights[3])
-        L2_gradient = ft_gradient(L3_gradient, self.layers[2],  self.weights[2])
-        L1_gradient = ft_gradient(L2_gradient, self.layers[1], self.weights[1])
-
-        self.biases[3] -= Lr * L4_gradient
-        self.weights[3] -= Lr * np.outer(L4_gradient, self.layers[3])
-
-        self.biases[2] -= Lr * L3_gradient
-        self.weights[2] -= Lr * np.outer(L3_gradient, self.layers[2])
+class NumPyMLP:
+    def __init__(self, layer_sizes, learning_rate=0.01, epochs=100, batch_size=32):
+        self.layer_sizes = layer_sizes  # e.g., [input_dim, 64, 32, 1]
+        self.lr = learning_rate
+        self.epochs = epochs
+        self.batch_size = batch_size
         
-        self.biases[1] -= Lr * L2_gradient
-        self.weights[1] -= Lr * np.outer(L2_gradient, self.layers[1])
-
-        self.biases[0] -= Lr * L1_gradient
-        self.weights[0] -= Lr * np.outer(L1_gradient, feature)
+        # Initialize weights and biases using He/Xavier initialization
+        self.weights = []
+        self.biases = []
         
+        np.random.seed(42)
+        for i in range(len(layer_sizes) - 1):
+            # He initialization for ReLU layers
+            w = np.random.randn(layer_sizes[i], layer_sizes[i+1]) * np.sqrt(2.0 / layer_sizes[i])
+            b = np.zeros((1, layer_sizes[i+1]))
+            self.weights.append(w)
+            self.biases.append(b)
 
+    def _relu(self, z):
+        return np.maximum(0, z)
 
-    def forwardPropagation(self, sample):
+    def _relu_derivative(self, z):
+        return (z > 0).astype(float)
 
-        z = np.dot(self.weights[0], sample) + self.biases[0]
-        neural = activation(z)
-        self.layers[1] = neural
+    def _sigmoid(self, z):
+        z = np.clip(z, -500, 500)  # Prevent overflow
+        return 1.0 / (1.0 + np.exp(-z))
 
-        
-        z = np.dot(self.weights[1], self.layers[1]) + self.biases[1]
-        neural = activation(z)
-        self.layers[2] = neural
+    def fit(self, X, y):
+        # Ensure y is a 2D column vector
+        y = y.reshape(-1, 1)
+        num_samples = X.shape[0]
 
-        z = np.dot(self.weights[2], self.layers[2]) + self.biases[2]
-        neural = activation(z)
-        self.layers[3] = neural
-
-        z = np.dot(self.weights[3], self.layers[3]) + self.biases[3]
-        neural = activation(z)
-        l5 = neural
-
-        return l5
-
-
-    def train(self, features, lables):
-
-        for epoch in range(Epochs):
-            indices = np.arange(len(features))
+        for epoch in range(self.epochs):
+            # Shuffle dataset each epoch
+            indices = np.arange(num_samples)
             np.random.shuffle(indices)
+            X_shuffled = X[indices]
+            y_shuffled = y[indices]
 
-            for i in indices:
-                prediction = self.forwardPropagation(features[i])
-                error = crossEntropy(prediction, lables[i])
-                self.backPropagation(error, features[i])
+            # Mini-batch gradient descent
+            for i in range(0, num_samples, self.batch_size):
+                X_batch = X_shuffled[i:i+self.batch_size]
+                y_batch = y_shuffled[i:i+self.batch_size]
+
+                # --- 1. Forward Pass ---
+                activations = [X_batch]
+                zs = []
+                
+                current_input = X_batch
+                for idx, (w, b) in enumerate(zip(self.weights, self.biases)):
+                    z = np.dot(current_input, w) + b
+                    zs.append(z)
+                    
+                    # Hidden layers use ReLU, final output layer uses Sigmoid
+                    if idx == len(self.weights) - 1:
+                        activation = self._sigmoid(z)
+                    else:
+                        activation = self._relu(z)
+                        
+                    activations.append(activation)
+                    current_input = activation
+
+                # --- 2. Backward Pass ---
+                # Derivative of Binary Cross Entropy with Sigmoid output simplifies to (y_pred - y_true)
+                output_error = activations[-1] - y_batch
+                deltas = [output_error]
+
+                # Backpropagate through hidden layers
+                for idx in range(len(self.weights) - 2, -1, -1):
+                    error = np.dot(deltas[0], self.weights[idx+1].T)
+                    delta = error * self._relu_derivative(zs[idx])
+                    deltas.insert(0, delta)
+
+                # --- 3. Gradient Update ---
+                for idx in range(len(self.weights)):
+                    grad_w = np.dot(activations[idx].T, deltas[idx]) / X_batch.shape[0]
+                    grad_b = np.sum(deltas[idx], axis=0, keepdims=True) / X_batch.shape[0]
+
+                    # Apply gradient descent update
+                    self.weights[idx] -= self.lr * grad_w
+                    self.biases[idx] -= self.lr * grad_b
+
+    def predict_proba(self, X):
+        current_input = X
+        for idx, (w, b) in enumerate(zip(self.weights, self.biases)):
+            z = np.dot(current_input, w) + b
+            if idx == len(self.weights) - 1:
+                current_input = self._sigmoid(z)
+            else:
+                current_input = self._relu(z)
+        return current_input.ravel()
 
 
+def evaluate_numpy_mlp(X_train, y_train, X_test, y_test):
+    # 1. Impute missing values using median (essential for 100+ feature financial datasets)
+    imputer = SimpleImputer(strategy='median')
+    X_train_clean = imputer.fit_transform(X_train)
+    X_test_clean = imputer.transform(X_test)
 
-def predict(ids, X_train, X_test, y_train, y_test):
+    # 2. Scale features to mean=0, variance=1
+    scaler = StandardScaler()
+    X_train_scaled = scaler.fit_transform(X_train_clean)
+    X_test_scaled = scaler.transform(X_test_clean)
 
-    correct = 0
-    customer_probabilities = []
+    # 3. Initialize and train MLP
+    input_dim = X_train_scaled.shape[1]
+    # Architecture: Input -> 64 -> 32 -> 1 Output
+    model = NumPyMLP(layer_sizes=[input_dim, 64, 32, 1], learning_rate=0.01, epochs=80, batch_size=32)
+    model.fit(X_train_scaled, y_train)
 
-    model = MLP_model(X_train.shape[1])
-    model.train(X_train, y_train)
-
-
-    for i in range(len(X_test)):
-        prob = model.forwardPropagation(X_test[i])
-        customer_probabilities.append(prob)
-
-        if prob >= 0.5:
-            prediction = 1
-        else:
-            prediction = 0
-
-        if prediction == y_test[i]:
-            correct += 1
-
-    # loss = cross_entropy_loss(np.array(customer_probabilities), y_test)
-    accuracy = correct / len(y_test) * 100
-
-    # print(f"Binary cross-entropy: {loss.mean():.4f}")
-    print(f"\nAccuracy: {accuracy:.2f}%")
-    print(f"Correct predictions: {correct}/{len(y_test)}")
-
-
-    probs_array = np.array(customer_probabilities)
-    binary_predictions = (probs_array >= 0.5).astype(int)
-
-    # pd.DataFrame({"ID": ids, "TARGET": binary_predictions}).to_csv(
-    #     "customer_probabilities.csv", index=False
-    # )
-
-    zeros_count = np.sum(y_train == 0)
-    ones_count = np.sum(y_train == 1)
-
-    print(f"y train Zeros (0): {zeros_count}")
-    print(f"y tain Ones (1): {ones_count}")
-
-    print("Min:", np.min(customer_probabilities))
-    print("Max:", np.max(customer_probabilities))
-    print("Mean:", np.mean(customer_probabilities))
-    print("Std:", np.std(customer_probabilities))
-    print("Unique predictions:", np.unique(customer_probabilities).size)
+    # 4. Generate continuous probabilities for AUC calculation
+    probabilities = model.predict_proba(X_test_scaled)
+    predictions = (probabilities >= 0.5).astype(int)
 
     metrics = {
-        "accuracy": accuracy_score(y_test, binary_predictions),
-        "auc": roc_auc_score(y_test, probs_array)
+        "accuracy": accuracy_score(y_test, predictions),
+        "auc": roc_auc_score(y_test, probabilities)
     }
     
-    return metrics
+    print(f"NumPy MLP Test Accuracy: {metrics['accuracy']:.4f}")
+    print(f"NumPy MLP Test AUC: {metrics['auc']:.4f}")
+    
+    return model, metrics

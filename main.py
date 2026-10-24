@@ -2,13 +2,14 @@ import argparse
 import pandas as pd
 from classification import baseline, random_forest, mlp_classifier, keras_classifier, tensorflow_classifier
 from parse import parse_data
-from mlp import predict
+from mlp import evaluate_numpy_mlp
 
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Churn prediction experiments")
     parser.add_argument("--data", default="data/bank_data_train.csv")
+    parser.add_argument("--epoch", type=int, default="1")
     parser.add_argument("--sample-size", type=int, default=0,
                         help="Rows for a quick test; use 0 for the complete dataset")
     args = parser.parse_args()
@@ -24,7 +25,8 @@ if __name__ == "__main__":
     #     _, metrics = runner(X_train, y_train, X_test, y_test)
     #     results.append({"library": "TensorFlow", "algorithm": name, **metrics})
 
-    metrics = predict(ids_test, X_train, X_test, y_train, y_test)
+    _, metrics = evaluate_numpy_mlp(X_train, y_train, X_test, y_test)
+    
     results.append({"library": "NumPy", "algorithm": "OOP MLP", **metrics})
     print(pd.DataFrame(results).to_string(index=False))
 
