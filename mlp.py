@@ -20,7 +20,7 @@ class NumPyMLP:
         np.random.seed(42)
         for i in range(len(layer_sizes) - 1):
             # He initialization for ReLU layers
-            w = np.random.randn(layer_sizes[i], layer_sizes[i+1]) * np.sqrt(1.0 / layer_sizes[i])
+            w = np.random.randn(layer_sizes[i], layer_sizes[i+1]) * np.sqrt(0.1 / layer_sizes[i])
             b = np.zeros((1, layer_sizes[i+1]))
             self.weights.append(w)
             self.biases.append(b)
