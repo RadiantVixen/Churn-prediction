@@ -2,6 +2,8 @@ import numpy as np
 from sklearn.metrics import accuracy_score, roc_auc_score
 from sklearn.preprocessing import StandardScaler
 from sklearn.impute import SimpleImputer
+from sklearn.metrics import roc_curve, auc
+import matplotlib.pyplot as plt
 
 
 class NumPyMLP:
@@ -70,7 +72,10 @@ class NumPyMLP:
 
                 # --- 2. Backward Pass ---
                 # Derivative of Binary Cross Entropy with Sigmoid output simplifies to (y_pred - y_true)
-                output_error = activations[-1] - y_batch
+                pos_weight = 3  # Amplifies the penalty for missing churners
+                sample_weights = np.where(y_batch == 1, pos_weight, 1.0)
+                
+                output_error = (activations[-1] - y_batch) * sample_weights
                 deltas = [output_error]
 
                 # Backpropagate through hidden layers
@@ -99,25 +104,39 @@ class NumPyMLP:
         return current_input.ravel()
 
 
+
 def evaluate_numpy_mlp(X_train, y_train, X_test, y_test):
     # 1. Impute missing values using median (essential for 100+ feature financial datasets)
     imputer = SimpleImputer(strategy='median')
     X_train_clean = imputer.fit_transform(X_train)
     X_test_clean = imputer.transform(X_test)
 
-    # 2. Scale features to mean=0, variance=1
-    scaler = StandardScaler()
+    from sklearn.preprocessing import RobustScaler
+
+    scaler = RobustScaler()
     X_train_scaled = scaler.fit_transform(X_train_clean)
     X_test_scaled = scaler.transform(X_test_clean)
 
     # 3. Initialize and train MLP
-    input_dim = X_train_scaled.shape[1]
     # Architecture: Input -> 64 -> 32 -> 1 Output
-    model = NumPyMLP(layer_sizes=[input_dim, 64, 32, 1], learning_rate=0.01, epochs=80, batch_size=32)
-    model.fit(X_train_scaled, y_train)
+    from sklearn.ensemble import RandomForestClassifier
+
+    # Quick feature selector
+    selector = RandomForestClassifier(n_estimators=100, random_state=42, n_jobs=-1)
+    selector.fit(X_train_scaled, y_train)
+
+    # Keep top features based on importance
+    importances = selector.feature_importances_
+    top_indices = np.argsort(importances)[-50:]  # Keep top 50 features
+
+    X_train_filtered = X_train_scaled[:, top_indices]
+    X_test_filtered = X_test_scaled[:, top_indices]
+    input_dim = X_train_filtered.shape[1]
+    model = NumPyMLP(layer_sizes=[input_dim, 64, 32, 1], learning_rate=0.01, epochs=100, batch_size=64)
+    model.fit(X_train_filtered, y_train)
 
     # 4. Generate continuous probabilities for AUC calculation
-    probabilities = model.predict_proba(X_test_scaled)
+    probabilities = model.predict_proba(X_test_filtered)
     predictions = (probabilities >= 0.5).astype(int)
 
     metrics = {
@@ -127,5 +146,16 @@ def evaluate_numpy_mlp(X_train, y_train, X_test, y_test):
     
     print(f"NumPy MLP Test Accuracy: {metrics['accuracy']:.4f}")
     print(f"NumPy MLP Test AUC: {metrics['auc']:.4f}")
+
+    fpr, tpr, _ = roc_curve(y_test, probabilities)
+    roc_auc = auc(fpr, tpr)
+    plt.figure(figsize=(8, 6))
+    plt.plot(fpr, tpr, color='blue', label=f'AUC = {roc_auc:.2f}')
+    plt.plot([0, 1], [0, 1], color='grey', linestyle='--')
+    plt.xlabel('False Positive Rate')
+    plt.ylabel('True Positive Rate')
+    plt.title('ROC Curve')
+    plt.legend()
+    plt.show()
     
     return model, metrics

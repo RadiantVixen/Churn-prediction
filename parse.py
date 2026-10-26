@@ -61,8 +61,8 @@ def parse_data(
     file_path="data/bank_data_train.csv",
     sample_size=None,
     random_state=42,
-    preview_rows=5,
-):
+    preview_rows=5,):
+
     """Clean bank data, print a compact preview, and return stratified arrays."""
     df = pd.read_csv(file_path)
     required_columns = {"ID", "TARGET"}
@@ -76,13 +76,13 @@ def parse_data(
     for column in ("ID", "TARGET"):
         if column not in preview_columns:
             preview_columns.append(column)
-    print("Training data before cleaning:")
-    print(df.loc[:, preview_columns].head(preview_rows).to_string(index=False))
+    # print("Training data before cleaning:")
+    # print(df.loc[:, preview_columns].head(preview_rows).to_string(index=False))
     df, duplicate_rows, duplicate_ids = _clean_dataframe(df)
-    print(
-        f"\nRemoved {duplicate_rows} duplicate rows and "
-        f"{duplicate_ids} duplicate IDs."
-    )
+    # print(
+    #     f"\nRemoved {duplicate_rows} duplicate rows and "
+    #     f"{duplicate_ids} duplicate IDs."
+    # )
 
     if sample_size is not None:
         if sample_size < 10:
@@ -101,11 +101,12 @@ def parse_data(
     "LDEAL_YQZ_CHRG",
     "AVG_PCT_MONTH_TO_PCLOSE",
     }
+    
     features = _encode_features(df.drop(columns=["ID", "TARGET"]))
-    features = _encode_features(features.drop(columns=DROP_FEATURES))
-    print("\nTraining data after cleaning (encoded features):")
-    print(features.iloc[:, :8].head(preview_rows).to_string(index=False))
-    print(f"Rows: {len(features):,} | Features: {features.shape[1]}")
+    # features = _encode_features(features.drop(columns=DROP_FEATURES))
+    # print("\nTraining data after cleaning (encoded features):")
+    # print(features.iloc[:, :8].head(preview_rows).to_string(index=False))
+    # print(f"Rows: {len(features):,} | Features: {features.shape[1]}")
 
     X_train, X_test, y_train, y_test, ids_train, ids_test = train_test_split(
         features, y, df["ID"], test_size=0.2, random_state=random_state, stratify=y
