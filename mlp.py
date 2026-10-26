@@ -72,7 +72,7 @@ class NumPyMLP:
 
                 # --- 2. Backward Pass ---
                 # Derivative of Binary Cross Entropy with Sigmoid output simplifies to (y_pred - y_true)
-                pos_weight = 2.5  # Amplifies the penalty for missing churners
+                pos_weight = 3  # Amplifies the penalty for missing churners
                 sample_weights = np.where(y_batch == 1, pos_weight, 1.0)
                 
                 output_error = (activations[-1] - y_batch) * sample_weights
@@ -132,7 +132,7 @@ def evaluate_numpy_mlp(X_train, y_train, X_test, y_test):
     X_train_filtered = X_train_scaled[:, top_indices]
     X_test_filtered = X_test_scaled[:, top_indices]
     input_dim = X_train_filtered.shape[1]
-    model = NumPyMLP(layer_sizes=[input_dim, 64, 32, 1], learning_rate=0.01, epochs=100, batch_size=64)
+    model = NumPyMLP(layer_sizes=[input_dim, 64, 32, 1], learning_rate=0.1, epochs=100, batch_size=64)
     model.fit(X_train_filtered, y_train)
 
     # 4. Generate continuous probabilities for AUC calculation
