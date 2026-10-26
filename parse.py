@@ -1,4 +1,3 @@
-
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
@@ -59,9 +58,7 @@ def _encode_features(features):
 
 def parse_data(
     file_path="data/bank_data_train.csv",
-    sample_size=None,
-    random_state=42,
-    preview_rows=5,):
+    random_state=42,):
 
     """Clean bank data, print a compact preview, and return stratified arrays."""
     df = pd.read_csv(file_path)
@@ -69,44 +66,15 @@ def parse_data(
     missing_columns = required_columns.difference(df.columns)
     if missing_columns:
         raise ValueError(f"Missing required columns: {sorted(missing_columns)}")
-    if preview_rows < 0:
-        raise ValueError("preview_rows must be non-negative")
 
-    preview_columns = list(df.columns[:8])
-    for column in ("ID", "TARGET"):
-        if column not in preview_columns:
-            preview_columns.append(column)
-    # print("Training data before cleaning:")
-    # print(df.loc[:, preview_columns].head(preview_rows).to_string(index=False))
     df, duplicate_rows, duplicate_ids = _clean_dataframe(df)
-    # print(
-    #     f"\nRemoved {duplicate_rows} duplicate rows and "
-    #     f"{duplicate_ids} duplicate IDs."
-    # )
-
-    if sample_size is not None:
-        if sample_size < 10:
-            raise ValueError("sample_size must be at least 10")
-        df = df.sample(n=min(sample_size, len(df)), random_state=random_state)
 
     y = pd.to_numeric(df["TARGET"], errors="raise").astype(int)
     if y.nunique() < 2:
         raise ValueError("The selected data must contain both TARGET classes")
 
-    DROP_FEATURES = {
-    "LDEAL_ACT_DAYS_PCT_TR4",
-    "LDEAL_ACT_DAYS_PCT_CURR",
-    "CLNT_SALARY_VALUE",
-    "LDEAL_YQZ_COM",
-    "LDEAL_YQZ_CHRG",
-    "AVG_PCT_MONTH_TO_PCLOSE",
-    }
     
     features = _encode_features(df.drop(columns=["ID", "TARGET"]))
-    # features = _encode_features(features.drop(columns=DROP_FEATURES))
-    # print("\nTraining data after cleaning (encoded features):")
-    # print(features.iloc[:, :8].head(preview_rows).to_string(index=False))
-    # print(f"Rows: {len(features):,} | Features: {features.shape[1]}")
 
     X_train, X_test, y_train, y_test, ids_train, ids_test = train_test_split(
         features, y, df["ID"], test_size=0.2, random_state=random_state, stratify=y
@@ -116,27 +84,3 @@ def parse_data(
     X_test = scaler.transform(X_test)
     return (ids_train.reset_index(drop=True), ids_test.reset_index(drop=True),
             X_train, X_test, y_train.to_numpy(), y_test.to_numpy())
-
-
-def parse_submission_data(train_path, test_path):
-    """Prepare the labeled training data and unlabeled submission data together."""
-    train = pd.read_csv(train_path)
-    test = pd.read_csv(test_path)
-    if "TARGET" not in train or "ID" not in train or "ID" not in test:
-        raise ValueError("Both files must contain ID; the training file must contain TARGET")
-
-    feature_columns = [column for column in train.columns if column not in {"ID", "TARGET"}]
-    missing_columns = set(feature_columns).difference(test.columns)
-    if missing_columns:
-        raise ValueError(f"Test file is missing columns: {sorted(missing_columns)}")
-    train, _, _ = _clean_dataframe(train)
-    test, _, _ = _clean_dataframe(test)
-    combined = pd.concat([train[feature_columns], test[feature_columns]], ignore_index=True)
-    features = _encode_features(combined)
-
-    return (
-        pd.to_numeric(train["TARGET"], errors="raise").astype(int).to_numpy(),
-        features.iloc[: len(train)].to_numpy(),
-        features.iloc[len(train):].to_numpy(),
-        test["ID"].reset_index(drop=True),
-    )
