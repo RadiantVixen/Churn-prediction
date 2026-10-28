@@ -1,13 +1,15 @@
 from sklearn.preprocessing import RobustScaler
 from sklearn.ensemble import RandomForestClassifier
 import numpy as np
-import pandas as pd
 from sklearn.metrics import accuracy_score, roc_auc_score
 from sklearn.preprocessing import StandardScaler
 from sklearn.impute import SimpleImputer
 from sklearn.metrics import roc_curve, auc
 import matplotlib.pyplot as plt
-
+import numpy as np
+from sklearn.impute import SimpleImputer
+from sklearn.preprocessing import RobustScaler, StandardScaler
+from sklearn.ensemble import RandomForestClassifier
 
 class NumPyMLP:
     def __init__(self, layer_sizes, learning_rate=0.005, epochs=90, batch_size=64):
@@ -16,9 +18,14 @@ class NumPyMLP:
         self.epochs = epochs
         self.batch_size = batch_size
         
-
         self.weights = []
         self.biases = []
+        
+        self.imputer = SimpleImputer(strategy='median')
+        self.robust_scaler = RobustScaler()
+        self.std_scaler = StandardScaler()
+        self.selector = RandomForestClassifier(n_estimators=100, random_state=42, n_jobs=-1)
+        self.top_indices = None
         
         np.random.seed(42)
         for i in range(len(layer_sizes) - 1):
@@ -37,6 +44,27 @@ class NumPyMLP:
         z = np.clip(z, -500, 500)
         return 1.0 / (1.0 + np.exp(-z))
 
+    def data_processing(self, X, y_train=None):
+        if y_train is None:
+            X = self.imputer.transform(X)
+            X = self.robust_scaler.transform(X)
+            X = self.std_scaler.transform(X)
+            
+            if self.top_indices is not None:
+                X = X[:, self.top_indices]
+        else:
+            X = self.imputer.fit_transform(X)
+            X = self.robust_scaler.fit_transform(X)
+            X = self.std_scaler.fit_transform(X)
+            
+            self.selector.fit(X, y_train)
+            importances = self.selector.feature_importances_
+            self.top_indices = np.argsort(importances)[-50:]
+            X = X[:, self.top_indices]
+
+        input_dim = X.shape[1]
+        return input_dim, X
+
     def fit(self, X, y):
         y = y.reshape(-1, 1)
         num_samples = X.shape[0]
@@ -46,7 +74,6 @@ class NumPyMLP:
             np.random.shuffle(indices)
             X_shuffled = X[indices]
             y_shuffled = y[indices]
-
 
             for i in range(0, num_samples, self.batch_size):
                 X_batch = X_shuffled[i:i+self.batch_size]
@@ -97,31 +124,15 @@ class NumPyMLP:
         return current_input.ravel()
 
 
-
-def evaluate_numpy_mlp(X_train, y_train, X_test, y_test):
-    imputer = SimpleImputer(strategy='median')
-    X_train_clean = imputer.fit_transform(X_train)
-    X_test_clean = imputer.transform(X_test)
+def evaluate_numpy_mlp(ids_test, X_train, y_train, X_test, y_test):
 
 
-    scaler = RobustScaler()
-    X_train_scaled = scaler.fit_transform(X_train_clean)
-    X_test_scaled = scaler.transform(X_test_clean)
+    model = NumPyMLP(layer_sizes=[50, 64, 32, 1], learning_rate=0.005, epochs=90, batch_size=64)
+    inputl, X_train = model.data_processing(X_train, y_train)
+    _, X_test = model.data_processing(X_test)
+    model.fit(X_train, y_train)
 
-
-    selector = RandomForestClassifier(n_estimators=100, random_state=42, n_jobs=-1)
-    selector.fit(X_train_scaled, y_train)
-
-    importances = selector.feature_importances_
-    top_indices = np.argsort(importances)[-50:]
-
-    X_train_filtered = X_train_scaled[:, top_indices]
-    X_test_filtered = X_test_scaled[:, top_indices]
-    input_dim = X_train_filtered.shape[1]
-    model = NumPyMLP(layer_sizes=[input_dim, 64, 32, 1], learning_rate=0.005, epochs=90, batch_size=64)
-    model.fit(X_train_filtered, y_train)
-
-    probabilities = model.predict_proba(X_test_filtered)
+    probabilities = model.predict_proba(X_test)
     predictions = (probabilities >= 0.5).astype(int)
 
     metrics = {
@@ -133,7 +144,7 @@ def evaluate_numpy_mlp(X_train, y_train, X_test, y_test):
     print(f"NumPy MLP Test AUC: {metrics['auc']:.4f}")
     
 
-    # pd.DataFrame({"ID": test_df["ID"], "TARGET": predictions}).to_csv("predictions.csv", index=False)
+    
 
     # fpr, tpr, _ = roc_curve(y_test, probabilities)
     # roc_auc = auc(fpr, tpr)
@@ -148,3 +159,6 @@ def evaluate_numpy_mlp(X_train, y_train, X_test, y_test):
 
     
     return model, metrics
+
+
+

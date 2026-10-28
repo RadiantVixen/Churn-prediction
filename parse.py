@@ -58,7 +58,7 @@ def _encode_features(features):
 
 def parse_data(
     file_path="data/bank_data_train.csv",
-    random_state=42,):
+    random_state=42):
 
     """Clean bank data, print a compact preview, and return stratified arrays."""
     df = pd.read_csv(file_path)
@@ -79,8 +79,6 @@ def parse_data(
     X_train, X_test, y_train, y_test, ids_train, ids_test = train_test_split(
         features, y, df["ID"], test_size=0.2, random_state=random_state, stratify=y
     )
-    scaler = StandardScaler()
-    X_train = scaler.fit_transform(X_train)
-    X_test = scaler.transform(X_test)
+
     return (ids_train.reset_index(drop=True), ids_test.reset_index(drop=True),
             X_train, X_test, y_train.to_numpy(), y_test.to_numpy())
